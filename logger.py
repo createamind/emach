@@ -14,7 +14,7 @@ import os.path as osp, time, atexit, os
 # from spinup.utils.mpi_tools import proc_id, mpi_statistics_scalar
 # from spinup.utils.serialization_utils import convert_json
 
-DEFAULT_DATA_DIR = osp.join(osp.abspath(osp.dirname(osp.dirname(__file__))),'data')
+DEFAULT_DATA_DIR = osp.join(osp.abspath(osp.dirname(__file__)),'data')
 
 
 color2num = dict(
