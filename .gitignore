@@ -1,0 +1,10 @@
+*.*~
+__pycache__/
+*.pkl
+data/
+docs/
+**/*.egg-info
+.python-version
+.idea/
+.vscode/
+*.pyc
