@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from gym.spaces import Box, Discrete
 
 EPS = 1e-8
 
@@ -37,6 +38,16 @@ Policies
 
 LOG_STD_MAX = 2
 LOG_STD_MIN = -20
+
+
+def mlp_categorical_policy(x, a, hidden_sizes, activation, output_activation, action_space):
+    act_dim = action_space.n
+    logits = mlp(x, list(hidden_sizes)+[act_dim], activation, None)
+    logp_all = tf.nn.log_softmax(logits)
+    pi = tf.squeeze(tf.multinomial(logits,1), axis=1)
+    logp = tf.reduce_sum(tf.one_hot(a, depth=act_dim) * logp_all, axis=1)
+    logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=act_dim) * logp_all, axis=1)
+    return pi, logp, logp_pi
 
 def mlp_gaussian_policy(x, a, hidden_sizes, activation, output_activation):
     act_dim = a.shape.as_list()[-1]
@@ -82,7 +93,17 @@ def apply_squashing_func(mu, pi, logp_pi):
 Actor-Critics
 """
 def mlp_actor_critic(x, a, hidden_sizes=(400,300), activation=tf.nn.relu, 
-                     output_activation=None, policy=mlp_gaussian_policy, action_space=None):
+                     output_activation=None, policy=None, action_space=None):
+    
+    
+    # default policy builder depends on action space
+    if policy is None and isinstance(action_space, Box):
+        policy = mlp_gaussian_policy
+    elif policy is None and isinstance(action_space, Discrete):
+        policy = mlp_categorical_policy
+    else:
+        policy = mlp_gaussian_policy
+
     # policy
     with tf.variable_scope('pi'):
         mu, pi, logp_pi = policy(x, a, hidden_sizes, activation, output_activation)
