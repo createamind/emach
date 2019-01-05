@@ -45,7 +45,7 @@ Soft Actor-Critic
 def sac1ex(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
         steps_per_epoch=5000, epochs=100, replay_size=int(1e4), gamma=0.99, 
         polyak=0.995, lr=1e-3, alpha=0.2, batch_size=100, start_steps=10000,
-        max_ep_len=1000, logger_kwargs=dict(), save_freq=1):
+        max_ep_len=1000, logger_kwargs=dict(), save_freq=1, replay_iters=5):
     """
     Args:
         env_fn : A function which creates a copy of the environment.
@@ -229,6 +229,9 @@ def sac1ex(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
     # Main loop: collect experience in env and update/log each epoch
     for t in range(total_steps):
 
+        if t % 500 == 0:
+            print('#', end="")
+
         """
         Until start_steps have elapsed, randomly sample actions
         from a uniform distribution for better exploration. Afterwards, 
@@ -263,7 +266,7 @@ def sac1ex(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
             This is a slight difference from the SAC specified in the
             original paper.
             """
-            for j in range(ep_len):
+            for j in range(replay_iters * ep_len // batch_size):
                 batch = replay_buffer.sample_batch(batch_size)
                 feed_dict = {x_ph: batch['obs1'],
                              x2_ph: batch['obs2'],

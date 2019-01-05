@@ -16,6 +16,7 @@ if __name__ == '__main__':
     parser.add_argument('--exp-name', type=str, default='sac')
     parser.add_argument('--algo', type=str, default='sac')
     parser.add_argument('--batch-size', type=int, default=128)
+    parser.add_argument('--replay-iters', type=int, default=5)
     args = parser.parse_args()
 
     from logger import setup_logger_kwargs
@@ -31,7 +32,7 @@ if __name__ == '__main__':
     if args.algo in algos:
         algos[args.algo](lambda : gym.make(args.env),
             ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), batch_size=args.batch_size,
-            gamma=args.gamma, seed=args.seed, epochs=args.epochs,
+            gamma=args.gamma, seed=args.seed, epochs=args.epochs, replay_iters=args.replay_iters,
             steps_per_epoch=args.steps_per_epoch, start_steps=args.start_steps, max_ep_len=args.max_ep_len,
             logger_kwargs=logger_kwargs)
     else:
