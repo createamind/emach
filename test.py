@@ -80,7 +80,7 @@ if __name__ == '__main__':
     parser.add_argument('--episodes', '-n', type=int, default=100)
     parser.add_argument('--norender', '-nr', action='store_true')
     parser.add_argument('--itr', '-i', type=int, default=-1)
-    parser.add_argument('--deterministic', '-d', action='store_true')
+    parser.add_argument('--deterministic', '-d', action='store_false')
     args = parser.parse_args()
     env, get_action = load_policy(args.fpath, 
                                   args.itr if args.itr >=0 else 'last',
