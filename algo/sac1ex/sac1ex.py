@@ -115,7 +115,8 @@ def sac1ex(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
 
     obs_space = env.observation_space
     act_space = env.action_space
-
+    print(obs_space)
+    print(act_space)
     # Share information about action space with policy architecture
     ac_kwargs['action_space'] = env.action_space
     ac_kwargs['observation_space'] = env.observation_space
@@ -229,9 +230,6 @@ def sac1ex(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
     # Main loop: collect experience in env and update/log each epoch
     for t in range(total_steps):
 
-        if t % 500 == 0:
-            print('#', end="")
-
         """
         Until start_steps have elapsed, randomly sample actions
         from a uniform distribution for better exploration. Afterwards, 
@@ -303,7 +301,7 @@ def sac1ex(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
             logger.log_tabular('EpLen', average_only=True)
             logger.log_tabular('TestEpLen', average_only=True)
             logger.log_tabular('TotalEnvInteracts', t)
-            logger.log_tabular('Alpha',average_only=True)
+            # logger.log_tabular('Alpha',average_only=True)
             logger.log_tabular('Q1Vals', with_min_and_max=True) 
             logger.log_tabular('Q2Vals', with_min_and_max=True) 
             # logger.log_tabular('VVals', with_min_and_max=True)
