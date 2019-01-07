@@ -9,7 +9,7 @@ if __name__ == '__main__':
     parser.add_argument('--l', type=int, default=2)
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--seed', '-s', type=int, default=0)
-    parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument('--epochs', type=int, default=5000)
     parser.add_argument('--steps-per-epoch', type=int, default=5000)
     parser.add_argument('--start-steps', type=int, default=10000)
     parser.add_argument('--max-ep-len', type=int, default=1000)
@@ -19,6 +19,7 @@ if __name__ == '__main__':
     parser.add_argument('--replay-iters', type=int, default=5)
     parser.add_argument('--prior-scale', type=float, default=1.)
     parser.add_argument('--num-ensemble', type=int, default=5)
+    parser.add_argument('--alpha', type=float, default=0.2)
     args = parser.parse_args()
 
     from logger import setup_logger_kwargs
@@ -38,6 +39,6 @@ if __name__ == '__main__':
             ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), batch_size=args.batch_size,
             gamma=args.gamma, seed=args.seed, epochs=args.epochs, replay_iters=args.replay_iters,
             steps_per_epoch=args.steps_per_epoch, start_steps=args.start_steps, max_ep_len=args.max_ep_len,
-            logger_kwargs=logger_kwargs, prior_scale=args.prior_scale, num_ensemble=args.num_ensemble)
+            logger_kwargs=logger_kwargs, prior_scale=args.prior_scale, num_ensemble=args.num_ensemble, alpha=args.alpha)
     else:
         raise NotImplementedError

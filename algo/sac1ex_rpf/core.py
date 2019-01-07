@@ -36,7 +36,7 @@ def mlp(x, hidden_sizes=(32,), activation=tf.tanh, output_activation=None):
     return tf.layers.dense(x, units=hidden_sizes[-1], activation=output_activation)
 
 
-def mlp_ensemble_with_prior(x, hidden_sizes=(32,), activation=tf.tanh, output_activation=None, num_ensemble=10, prior_scale=1.):
+def mlp_ensemble_with_prior(x, hidden_sizes=(32,), activation=tf.tanh, output_activation=None, num_ensemble=5, prior_scale=1.):
     
     prior_outputs = []
     for k in range(num_ensemble):
@@ -160,11 +160,11 @@ Policies
 LOG_STD_MAX = 2
 LOG_STD_MIN = -20
 
-def mlp_gaussian_policy(x, a, hidden_sizes, activation, output_activation):
+def mlp_gaussian_policy(x, a, hidden_sizes, activation, output_activation, num_ensemble=5, prior_scale=1.):
     # if len(x.shape) > 2: #Images
     #     x = nature_cnn(x)
     act_dim = a.shape.as_list()[-1]
-    net = mlp(x, list(hidden_sizes), activation, activation)
+    net = mlp_ensemble_with_prior(x, list(hidden_sizes), activation, activation, num_ensemble, prior_scale)
     mu = tf.layers.dense(net, act_dim, activation=output_activation)
     log_std = tf.layers.dense(net, act_dim, activation=tf.tanh)
     log_std = LOG_STD_MIN + 0.5 * (LOG_STD_MAX - LOG_STD_MIN) * (log_std + 1)
@@ -214,7 +214,7 @@ def apply_squashing_func(mu, pi, logp_pi):
 Actor-Critics
 """
 def mlp_actor_critic(alpha, x, a, hidden_sizes=(400,300), activation=tf.nn.relu, 
-                     output_activation=None, policy=None, action_space=None, observation_space=None, num_ensemble=10, prior_scale=1.):
+                     output_activation=None, policy=None, action_space=None, observation_space=None, num_ensemble=5, prior_scale=1.):
     
     with tf.variable_scope('cnn'):
         if len(x.shape) > 2: #Images
@@ -252,7 +252,7 @@ def mlp_actor_critic(alpha, x, a, hidden_sizes=(400,300), activation=tf.nn.relu,
     # policy
     if isinstance(action_space, Box):
         with tf.variable_scope('pi'):
-            mu, pi, logp_pi = mlp_gaussian_policy(x, a, hidden_sizes, activation, output_activation)
+            mu, pi, logp_pi = mlp_gaussian_policy(x, a, hidden_sizes, activation, output_activation, num_ensemble=num_ensemble, prior_scale=prior_scale)
             mu, pi, logp_pi = apply_squashing_func(mu, pi, logp_pi)
             # make sure actions are in correct range
             action_scale = action_space.high[0]

@@ -137,15 +137,43 @@ def apply_squashing_func(mu, pi, logp_pi):
     return mu, pi, logp_pi
 
 
+
+def mlp_ensemble_with_prior(x, hidden_sizes=(32,), activation=tf.tanh, output_activation=None, num_ensemble=5, prior_scale=1.):
+    
+    prior_outputs = []
+    for k in range(num_ensemble):
+        tx = x
+        for h in hidden_sizes[:-1]:
+            tx = tf.layers.dense(tx, units=h, activation=activation)
+        prior_outputs.append(tf.layers.dense(tx, units=hidden_sizes[-1], activation=output_activation))
+    prior_outputs = tf.stack(prior_outputs, axis=1)
+    prior_outputs = tf.stop_gradient(prior_outputs)
+
+    model_outputs = []
+    for k in range(num_ensemble):
+        tx = x
+        for h in hidden_sizes[:-1]:
+            tx = tf.layers.dense(tx, units=h, activation=activation)
+        model_outputs.append(tf.layers.dense(tx, units=hidden_sizes[-1], activation=output_activation))
+    model_outputs = tf.stack(model_outputs, axis=1)
+
+    real_outputs = model_outputs + prior_scale * prior_outputs
+    sample = tf.multinomial(tf.log([[10.] * num_ensemble]), 1)[0][0]
+    real_outputs = real_outputs[:, sample, :]
+    return real_outputs
+
 """
 Actor-Critics
 """
-def mlp_actor_critic(alpha, x, a, hidden_sizes=(400,300), activation=tf.nn.relu, 
-                     output_activation=None, policy=None, action_space=None, observation_space=None):
+def mlp_actor_critic(alpha, x, x2, a, hidden_sizes=(400,300), activation=tf.nn.relu, 
+                     output_activation=None, policy=None, action_space=None, observation_space=None, 
+                     num_ensemble=5, prior_scale=1., rollout_length=3, rollout_sample=3):
     
     with tf.variable_scope('cnn'):
         if len(x.shape) > 2: #Images
             x = nature_cnn(x)
+        if len(x2.shape) > 2: #Images
+            x2 = nature_cnn(x2)
 
     def vf_mlp(x, a, all_values=False):
         # if len(x.shape) > 2: #Images
@@ -159,6 +187,15 @@ def mlp_actor_critic(alpha, x, a, hidden_sizes=(400,300), activation=tf.nn.relu,
                 return x
             x = tf.reduce_sum(x * tf.one_hot(a, action_space.n), axis=1)
             return x
+
+    def forward_nn(x, a):
+        if isinstance(action_space, Discrete):
+            a = tf.one_hot(a, action_space.n)
+        x_t = tf.concat([x, a], axis=-1)
+        return mlp_ensemble_with_prior(x_t, [400]+[x.shape[1]], activation, None)
+
+    with tf.variable_scope('dy') as dy_scope:
+        x_pred = forward_nn(x, a) + x
 
     with tf.variable_scope('q1'):
         q1 = vf_mlp(x, a)
@@ -185,6 +222,10 @@ def mlp_actor_critic(alpha, x, a, hidden_sizes=(400,300), activation=tf.nn.relu,
             action_scale = action_space.high[0]
             mu *= action_scale
             pi *= action_scale
+        # Rollout
+        # with tf.variable_scope('pi', reuse=True):
+        #     for i in range()
+
 
     elif isinstance(action_space, Discrete):
         with tf.variable_scope('q1', reuse=True):
@@ -202,4 +243,5 @@ def mlp_actor_critic(alpha, x, a, hidden_sizes=(400,300), activation=tf.nn.relu,
     with tf.variable_scope('q2', reuse=True):
         q2_pi = vf_mlp(x, pi)
 
-    return mu, pi, logp_pi, q1, q2, q1_pi, q2_pi
+
+    return mu, pi, logp_pi, q1, q2, q1_pi, q2_pi, x_pred, x2

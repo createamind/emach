@@ -50,7 +50,7 @@ Soft Actor-Critic
 def sac1ex_mb(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
         steps_per_epoch=5000, epochs=100, replay_size=int(1e4), gamma=0.99, 
         polyak=0.995, lr=1e-3, alpha='auto', batch_size=100, start_steps=10000,
-        max_ep_len=1000, logger_kwargs=dict(), save_freq=1, replay_iters=5, num_ensemble=10, prior_scale=1.):
+        max_ep_len=1000, logger_kwargs=dict(), save_freq=1, replay_iters=5, num_ensemble=5, prior_scale=1.):
     """
     Args:
         env_fn : A function which creates a copy of the environment.
@@ -125,6 +125,8 @@ def sac1ex_mb(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed
     # Share information about action space with policy architecture
     ac_kwargs['action_space'] = env.action_space
     ac_kwargs['observation_space'] = env.observation_space
+    ac_kwargs['num_ensemble'] = num_ensemble
+    ac_kwargs['prior_scale'] = prior_scale
 
     # Inputs to computation graph
     x_ph, a_ph, x2_ph, r_ph, d_ph = core.placeholders_from_spaces(obs_space, act_space, obs_space, None, None)
@@ -132,11 +134,11 @@ def sac1ex_mb(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed
     log_alpha = tf.get_variable('log_alpha', dtype=tf.float32, initializer=0.0)
     # Main outputs from computation graph
     with tf.variable_scope('main'):
-        mu, pi, logp_pi, q1, q2, q1_pi, q2_pi = actor_critic(tf.exp(log_alpha), x_ph, a_ph, **ac_kwargs)
+        mu, pi, logp_pi, q1, q2, q1_pi, q2_pi, sta_pred, sta_real = actor_critic(tf.exp(log_alpha), x_ph, x2_ph, a_ph, **ac_kwargs)
     
     # Target value network
     with tf.variable_scope('target'):
-        _, _, logp_pi_, _, _,q1_pi_, q2_pi_= actor_critic(tf.exp(log_alpha), x2_ph, a_ph, **ac_kwargs)
+        _, _, logp_pi_, _, _,q1_pi_, q2_pi_, _, _ = actor_critic(tf.exp(log_alpha), x2_ph, x2_ph, a_ph, **ac_kwargs)
 
     # Experience buffer
     replay_buffer = ReplayBuffer(obs_dim=obs_space.shape, act_dim=act_space.shape, size=replay_size)
@@ -174,6 +176,7 @@ def sac1ex_mb(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed
     q1_loss = 0.5 * tf.reduce_mean((q_backup - q1)**2)
     q2_loss = 0.5 * tf.reduce_mean((q_backup - q2)**2)
     value_loss = q1_loss + q2_loss
+    dynamics_loss = 0.5 * tf.reduce_mean((sta_pred - sta_real)**2)
 
     # Policy train op 
     # (has to be separate from value train op, because q1_pi appears in pi_loss)
@@ -190,19 +193,27 @@ def sac1ex_mb(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed
     with tf.control_dependencies([train_pi_op]):
         train_value_op = value_optimizer.minimize(value_loss, var_list=value_params)
 
+
+    dynamics_optimizer = tf.train.AdamOptimizer(learning_rate=lr)
+    dynamics_params = get_vars('main/dy')
+    with tf.control_dependencies([train_value_op]):
+        dynamics_update_op = dynamics_optimizer.minimize(dynamics_loss, var_list=dynamics_params)
+
     # Polyak averaging for target variables
     # (control flow because sess.run otherwise evaluates in nondeterministic order)
-    with tf.control_dependencies([train_value_op]):
+    with tf.control_dependencies([dynamics_update_op]):
         target_update = tf.group([tf.assign(v_targ, polyak*v_targ + (1-polyak)*v_main)
                                   for v_main, v_targ in zip(get_vars('main'), get_vars('target'))])
 
+
+
     # All ops to call during one training step
     if isinstance(alpha, Number):
-        step_ops = [pi_loss, q1_loss, q2_loss, q1, q2, logp_pi, tf.identity(alpha),
-                train_pi_op, train_value_op, target_update]
+        step_ops = [pi_loss, q1_loss, q2_loss, q1, q2, logp_pi, tf.identity(alpha), dynamics_loss,
+                train_pi_op, train_value_op, target_update, dynamics_update_op]
     else:
-        step_ops = [pi_loss, q1_loss, q2_loss, q1, q2, logp_pi, alpha,
-                train_pi_op, train_value_op, target_update, train_alpha_op]
+        step_ops = [pi_loss, q1_loss, q2_loss, q1, q2, logp_pi, alpha, dynamics_loss,
+                train_pi_op, train_value_op, target_update, train_alpha_op, dynamics_update_op]
 
 
     # Initializing targets to match main variables
@@ -289,7 +300,7 @@ def sac1ex_mb(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed
                 outs = sess.run(step_ops, feed_dict)
                 logger.store(LossPi=outs[0], LossQ1=outs[1], LossQ2=outs[2],
                             Q1Vals=outs[3], Q2Vals=outs[4],
-                            LogPi=outs[5], Alpha=outs[6])
+                            LogPi=outs[5], Alpha=outs[6], LossDY=outs[7])
 
             logger.store(EpRet=ep_ret, EpLen=ep_len)
             o, r, d, ep_ret, ep_len = env.reset(), 0, False, 0, 0
@@ -322,6 +333,7 @@ def sac1ex_mb(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed
             logger.log_tabular('LossPi', average_only=True)
             logger.log_tabular('LossQ1', average_only=True)
             logger.log_tabular('LossQ2', average_only=True)
+            logger.log_tabular('LossDY', average_only=True)
             # logger.log_tabular('LossV', average_only=True)
             logger.log_tabular('Time', time.time()-start_time)
             logger.dump_tabular()
