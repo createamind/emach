@@ -3,9 +3,14 @@ import tensorflow as tf
 from numbers import Number
 import gym
 import time
+import functools
 from algo.sac1ex import core
 from algo.sac1ex.core import get_vars
 from logger import EpochLogger
+from gym.spaces import Box, Discrete
+import sys
+if not (sys.version_info[0] < 3):
+    print = functools.partial(print, flush=True)
 
 
 class ReplayBuffer:
@@ -44,7 +49,7 @@ Soft Actor-Critic
 """
 def sac1ex(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
         steps_per_epoch=5000, epochs=100, replay_size=int(1e4), gamma=0.99, 
-        polyak=0.995, lr=1e-3, alpha=0.2, batch_size=100, start_steps=10000,
+        polyak=0.995, lr=1e-3, alpha='auto', batch_size=100, start_steps=10000,
         max_ep_len=1000, logger_kwargs=dict(), save_freq=1, replay_iters=5):
     """
     Args:
@@ -124,13 +129,14 @@ def sac1ex(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
     # Inputs to computation graph
     x_ph, a_ph, x2_ph, r_ph, d_ph = core.placeholders_from_spaces(obs_space, act_space, obs_space, None, None)
 
+    log_alpha = tf.get_variable('log_alpha', dtype=tf.float32, initializer=0.0)
     # Main outputs from computation graph
     with tf.variable_scope('main'):
-        mu, pi, logp_pi, q1, q2, q1_pi, q2_pi = actor_critic(x_ph, a_ph, **ac_kwargs)
+        mu, pi, logp_pi, q1, q2, q1_pi, q2_pi = actor_critic(tf.exp(log_alpha), x_ph, a_ph, **ac_kwargs)
     
     # Target value network
     with tf.variable_scope('target'):
-        _, _, logp_pi_, _, _,q1_pi_, q2_pi_= actor_critic(x2_ph, a_ph, **ac_kwargs)
+        _, _, logp_pi_, _, _,q1_pi_, q2_pi_= actor_critic(tf.exp(log_alpha), x2_ph, a_ph, **ac_kwargs)
 
     # Experience buffer
     replay_buffer = ReplayBuffer(obs_dim=obs_space.shape, act_dim=act_space.shape, size=replay_size)
@@ -145,7 +151,7 @@ def sac1ex(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
     if alpha == 'auto':
         target_entropy = (-np.prod(env.action_space.shape))
 
-        log_alpha = tf.get_variable( 'log_alpha', dtype=tf.float32, initializer=0.0)
+        # log_alpha = tf.get_variable( 'log_alpha', dtype=tf.float32, initializer=0.0)
         alpha = tf.exp(log_alpha)
 
         alpha_loss = tf.reduce_mean(-log_alpha * tf.stop_gradient(logp_pi + target_entropy))
@@ -172,12 +178,15 @@ def sac1ex(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
     # Policy train op 
     # (has to be separate from value train op, because q1_pi appears in pi_loss)
     pi_optimizer = tf.train.AdamOptimizer(learning_rate=lr)
-    train_pi_op = pi_optimizer.minimize(pi_loss, var_list=get_vars('main/pi'))
+    if isinstance(act_space, Box):
+        train_pi_op = pi_optimizer.minimize(pi_loss, var_list=get_vars('main/pi') + get_vars('cnn'))
+    else:
+        train_pi_op = tf.no_op()
 
     # Value train op
     # (control dep of train_pi_op because sess.run otherwise evaluates in nondeterministic order)
     value_optimizer = tf.train.AdamOptimizer(learning_rate=lr)
-    value_params = get_vars('main/q')
+    value_params = get_vars('main/q') + get_vars('cnn')
     with tf.control_dependencies([train_pi_op]):
         train_value_op = value_optimizer.minimize(value_loss, var_list=value_params)
 
@@ -257,14 +266,18 @@ def sac1ex(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
         # most recent observation!
         o = o2
 
+        if t % 30 == 0:
+            print('.', end="")
         # End of episode. Training (ep_len times).
-        if d or (ep_len == max_ep_len):
+        if d or (ep_len == max_ep_len or (t > 0 and t % steps_per_epoch == 0)):
             """
             Perform all SAC updates at the end of the trajectory.
             This is a slight difference from the SAC specified in the
             original paper.
             """
             for j in range(replay_iters * ep_len // batch_size):
+                if j % 10 == 0:
+                    print('*', end="")
                 batch = replay_buffer.sample_batch(batch_size)
                 feed_dict = {x_ph: batch['obs1'],
                              x2_ph: batch['obs2'],
@@ -301,7 +314,7 @@ def sac1ex(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
             logger.log_tabular('EpLen', average_only=True)
             logger.log_tabular('TestEpLen', average_only=True)
             logger.log_tabular('TotalEnvInteracts', t)
-            # logger.log_tabular('Alpha',average_only=True)
+            logger.log_tabular('Alpha',average_only=True)
             logger.log_tabular('Q1Vals', with_min_and_max=True) 
             logger.log_tabular('Q2Vals', with_min_and_max=True) 
             # logger.log_tabular('VVals', with_min_and_max=True)
