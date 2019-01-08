@@ -324,18 +324,11 @@ def mlp_actor_critic(alpha, x, x2, a, hidden_sizes=(400,300), activation=tf.nn.r
         pi_record = tf.stack(pi_record, axis=1)
         logp_pi_record = tf.stack(logp_pi_record, axis=1)
 
-        print(mu_record)
-        print(pi_record)
-        print(logp_pi_record)
-        print(mu_record * tf.one_hot(bestone, depth=rollout_actions))
+        # print(mu_record * tf.one_hot(bestone, depth=rollout_actions))
 
-        mu = tf.reduce_sum(mu_record * tf.one_hot(bestone, depth=rollout_actions), axis=1)
-        pi = tf.reduce_sum(pi_record * tf.one_hot(bestone, depth=rollout_actions), axis=1)
-        logp_pi = tf.reduce_sum(logp_pi_record * tf.one_hot(bestone, depth=rollout_actions), axis=1)
-
-        print(mu)
-        print(pi)
-        print(logp_pi)
+        mu = tf.reduce_sum(mu_record * tf.one_hot(bestone, depth=rollout_actions, dtype=tf.int64), axis=1)
+        pi = tf.reduce_sum(pi_record * tf.one_hot(bestone, depth=rollout_actions, dtype=tf.int64), axis=1)
+        logp_pi = tf.reduce_sum(logp_pi_record * tf.one_hot(bestone, depth=rollout_actions, dtype=tf.float32), axis=1)
 
 
     with tf.variable_scope('q1', reuse=True):
