@@ -167,7 +167,7 @@ Actor-Critics
 """
 def mlp_actor_critic(alpha, x, x2, a, hidden_sizes=(400,300), activation=tf.nn.relu, 
                      output_activation=None, policy=None, action_space=None, observation_space=None, 
-                     num_ensemble=5, prior_scale=1., rollout_length=3, rollout_actions=3):
+                     num_ensemble=5, prior_scale=1., rollout_length=3, rollout_actions=2):
     
     with tf.variable_scope('cnn'):
         if len(x.shape) > 2: #Images

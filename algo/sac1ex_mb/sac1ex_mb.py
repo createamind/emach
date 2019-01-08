@@ -167,7 +167,7 @@ def sac1ex_mb(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed
     min_q_pi = tf.minimum(q1_pi_, q2_pi_)
 
     # Targets for Q and V regression
-    v_backup = tf.stop_gradient(min_q_pi - 0 * logp_pi_)
+    v_backup = tf.stop_gradient(min_q_pi - alpha * logp_pi_)
     q_backup = r_ph + gamma*(1-d_ph)*v_backup
 
 
@@ -293,7 +293,7 @@ def sac1ex_mb(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed
                 feed_dict = {x_ph: batch['obs1'],
                              x2_ph: batch['obs2'],
                              a_ph: batch['acts'],
-                             r_ph: np.clip(batch['rews'], -1, 1),
+                             r_ph: batch['rews'], #np.clip(batch['rews'], -1, 1),
                              d_ph: batch['done'],
                             }
                 # step_ops = [pi_loss, q1_loss, q2_loss, q1, q2, logp_pi, alpha, train_pi_op, train_value_op, target_update]
