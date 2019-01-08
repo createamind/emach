@@ -284,7 +284,7 @@ def sac1ex_rpf(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), see
                 feed_dict = {x_ph: batch['obs1'],
                              x2_ph: batch['obs2'],
                              a_ph: batch['acts'],
-                             r_ph: batch['rews'],
+                             r_ph: np.clip(batch['rews'], -1, 1),
                              d_ph: batch['done'],
                             }
                 # step_ops = [pi_loss, q1_loss, q2_loss, q1, q2, logp_pi, alpha, train_pi_op, train_value_op, target_update]
