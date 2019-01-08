@@ -87,11 +87,11 @@ Policies
 LOG_STD_MAX = 2
 LOG_STD_MIN = -20
 
-def mlp_gaussian_policy(x, a, hidden_sizes, activation, output_activation):
+def mlp_gaussian_policy(x, a, hidden_sizes, activation, output_activation, num_ensemble=5, prior_scale=1.):
     # if len(x.shape) > 2: #Images
     #     x = nature_cnn(x)
     act_dim = a.shape.as_list()[-1]
-    net = mlp(x, list(hidden_sizes), activation, activation)
+    net = mlp_ensemble_with_prior(x, list(hidden_sizes), activation, activation)
     mu = tf.layers.dense(net, act_dim, activation=output_activation)
     log_std = tf.layers.dense(net, act_dim, activation=tf.tanh)
     log_std = LOG_STD_MIN + 0.5 * (LOG_STD_MAX - LOG_STD_MIN) * (log_std + 1)
@@ -180,9 +180,9 @@ def mlp_actor_critic(alpha, x, x2, a, hidden_sizes=(400,300), activation=tf.nn.r
         #     x = nature_cnn(x)
         if isinstance(action_space, Box):
             x = tf.concat([x,a], axis=-1)
-            return tf.squeeze(mlp(x, list(hidden_sizes)+[1], activation, None), axis=1)
+            return tf.squeeze(mlp_ensemble_with_prior(x, list(hidden_sizes)+[1], activation, None, num_ensemble=num_ensemble, prior_scale=prior_scale), axis=1)
         elif isinstance(action_space, Discrete):
-            x = mlp(x, list(hidden_sizes)+[action_space.n], activation, None)
+            x = mlp_ensemble_with_prior(x, list(hidden_sizes)+[action_space.n], activation, None, num_ensemble=num_ensemble, prior_scale=prior_scale)
             if all_values:
                 return x
             x = tf.reduce_sum(x * tf.one_hot(a, action_space.n), axis=1)
@@ -216,7 +216,7 @@ def mlp_actor_critic(alpha, x, x2, a, hidden_sizes=(400,300), activation=tf.nn.r
     # policy
     if isinstance(action_space, Box):
         with tf.variable_scope('pi'):
-            mu, pi, logp_pi = mlp_gaussian_policy(x, a, hidden_sizes, activation, output_activation)
+            mu, pi, logp_pi = mlp_gaussian_policy(x, a, hidden_sizes, activation, output_activation, num_ensemble=num_ensemble, prior_scale=prior_scale)
             mu, pi, logp_pi = apply_squashing_func(mu, pi, logp_pi)
             # make sure actions are in correct range
             action_scale = action_space.high[0]
@@ -235,7 +235,7 @@ def mlp_actor_critic(alpha, x, x2, a, hidden_sizes=(400,300), activation=tf.nn.r
             for j in range(states.shape[1]):
                 for k in range(rollout_actions):
                     with tf.variable_scope('pi', reuse=True):
-                        mu, pi, logp_pi = mlp_gaussian_policy(states[:,j], a, hidden_sizes, activation, output_activation)
+                        mu, pi, logp_pi = mlp_gaussian_policy(states[:,j], a, hidden_sizes, activation, output_activation, num_ensemble=num_ensemble, prior_scale=prior_scale)
                     mu, pi, logp_pi = apply_squashing_func(mu, pi, logp_pi)
                     action_scale = action_space.high[0]
                     mu *= action_scale
@@ -254,7 +254,7 @@ def mlp_actor_critic(alpha, x, x2, a, hidden_sizes=(400,300), activation=tf.nn.r
         all_qs = []
         for j in range(states.shape[1]):
             with tf.variable_scope('pi', reuse=True):
-                mu, pi, logp_pi = mlp_gaussian_policy(states[:,j], a, hidden_sizes, activation, output_activation)
+                mu, pi, logp_pi = mlp_gaussian_policy(states[:,j], a, hidden_sizes, activation, output_activation, num_ensemble=num_ensemble, prior_scale=prior_scale)
             mu, pi, logp_pi = apply_squashing_func(mu, pi, logp_pi)
             action_scale = action_space.high[0]
             mu *= action_scale
