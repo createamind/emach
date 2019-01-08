@@ -135,13 +135,13 @@ def nature_cnn(unscaled_images):
         kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-5),
         kernel_initializer=tf.contrib.layers.xavier_initializer()))
 
-    x = tf.nn.relu(tf.layers.conv2d(x, 32, [4, 4], strides=(2, 2), padding='VALID', 
-        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-5),
-        kernel_initializer=tf.contrib.layers.xavier_initializer()))
+    # x = tf.nn.relu(tf.layers.conv2d(x, 32, [4, 4], strides=(2, 2), padding='VALID', 
+    #     kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-5),
+    #     kernel_initializer=tf.contrib.layers.xavier_initializer()))
 
-    x = tf.nn.relu(tf.layers.conv2d(x, 32, [4, 4], strides=(2, 2), padding='VALID', 
-        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-5),
-        kernel_initializer=tf.contrib.layers.xavier_initializer()))
+    # x = tf.nn.relu(tf.layers.conv2d(x, 32, [4, 4], strides=(2, 2), padding='VALID', 
+    #     kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-5),
+    #     kernel_initializer=tf.contrib.layers.xavier_initializer()))
 
     print(x)
     return tf.reshape(x, [-1, x.shape[1] * x.shape[2] * x.shape[3]])

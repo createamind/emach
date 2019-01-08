@@ -62,13 +62,13 @@ def nature_cnn(unscaled_images):
         kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-5),
         kernel_initializer=tf.contrib.layers.xavier_initializer()))
 
-    x = tf.nn.relu(tf.layers.conv2d(x, 32, [4, 4], strides=(2, 2), padding='VALID', 
-        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-5),
-        kernel_initializer=tf.contrib.layers.xavier_initializer()))
+    # x = tf.nn.relu(tf.layers.conv2d(x, 32, [4, 4], strides=(2, 2), padding='VALID', 
+    #     kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-5),
+    #     kernel_initializer=tf.contrib.layers.xavier_initializer()))
 
-    x = tf.nn.relu(tf.layers.conv2d(x, 32, [4, 4], strides=(2, 2), padding='VALID', 
-        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-5),
-        kernel_initializer=tf.contrib.layers.xavier_initializer()))
+    # x = tf.nn.relu(tf.layers.conv2d(x, 32, [4, 4], strides=(2, 2), padding='VALID', 
+    #     kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-5),
+    #     kernel_initializer=tf.contrib.layers.xavier_initializer()))
 
     print(x)
     return tf.reshape(x, [-1, x.shape[1] * x.shape[2] * x.shape[3]])
@@ -167,7 +167,7 @@ Actor-Critics
 """
 def mlp_actor_critic(alpha, x, x2, a, hidden_sizes=(400,300), activation=tf.nn.relu, 
                      output_activation=None, policy=None, action_space=None, observation_space=None, 
-                     num_ensemble=5, prior_scale=1., rollout_length=3, rollout_sample=3):
+                     num_ensemble=5, prior_scale=1., rollout_length=3, rollout_actions=3):
     
     with tf.variable_scope('cnn'):
         if len(x.shape) > 2: #Images
@@ -222,9 +222,58 @@ def mlp_actor_critic(alpha, x, x2, a, hidden_sizes=(400,300), activation=tf.nn.r
             action_scale = action_space.high[0]
             mu *= action_scale
             pi *= action_scale
+
         # Rollout
-        # with tf.variable_scope('pi', reuse=True):
-        #     for i in range()
+        xshape = x.shape[1]
+        mu_record = []
+        pi_record = []
+        logp_pi_record = []
+
+        states = tf.reshape(tf.tile(x, [1, 1]), [-1, 1, xshape])
+        for i in range(rollout_length):
+            new_states = []
+            for j in range(states.shape[1]):
+                for k in range(rollout_actions):
+                    with tf.variable_scope('pi', reuse=True):
+                        mu, pi, logp_pi = mlp_gaussian_policy(states[:,j], a, hidden_sizes, activation, output_activation)
+                    mu, pi, logp_pi = apply_squashing_func(mu, pi, logp_pi)
+                    action_scale = action_space.high[0]
+                    mu *= action_scale
+                    pi *= action_scale
+
+                    if i == 0:
+                        mu_record.append(mu)
+                        pi_record.append(pi)
+                        logp_pi_record.append(logp_pi)
+
+                    with tf.variable_scope(dy_scope, reuse=True):
+                        new_states.append(forward_nn(states[:,j], pi) + states[:,j])
+            states = tf.stack(new_states, axis=1)
+
+        numberofstates = rollout_actions ** rollout_length
+        all_qs = []
+        for j in range(states.shape[1]):
+            with tf.variable_scope('pi', reuse=True):
+                mu, pi, logp_pi = mlp_gaussian_policy(states[:,j], a, hidden_sizes, activation, output_activation)
+            mu, pi, logp_pi = apply_squashing_func(mu, pi, logp_pi)
+            action_scale = action_space.high[0]
+            mu *= action_scale
+            pi *= action_scale
+
+            all_q = vf_mlp(states[:, j], pi)
+            all_qs.append(all_q)
+
+        all_qs = tf.stack(all_qs, axis=1)
+        # all_qs = tf.Print(all_qs, [all_qs], summarize=100)
+        bestone = tf.argmax(all_qs, axis=1) // (rollout_actions ** (rollout_length - 1))
+
+        mu_record = tf.stack(mu_record, axis=1)
+        pi_record = tf.stack(pi_record, axis=1)
+        logp_pi_record = tf.stack(logp_pi_record, axis=1)
+
+        mu = tf.reduce_sum(mu_record * tf.expand_dims(tf.one_hot(bestone, depth=rollout_actions), axis=-1), axis=1)
+        pi = tf.reduce_sum(pi_record * tf.expand_dims(tf.one_hot(bestone, depth=rollout_actions), axis=-1), axis=1)
+        logp_pi = tf.reduce_sum(logp_pi_record * tf.one_hot(bestone, depth=rollout_actions), axis=1)
 
 
     elif isinstance(action_space, Discrete):
@@ -235,6 +284,59 @@ def mlp_actor_critic(alpha, x, x2, a, hidden_sizes=(400,300), activation=tf.nn.r
             mu = tf.argmax(logp_all, 1)
             pi = tf.squeeze(tf.multinomial(logp_all, 1), axis=1)
             logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=action_space.n) * logp_all, axis=1)
+
+        # Rollout
+        xshape = x.shape[1]
+        mu_record = []
+        pi_record = []
+        logp_pi_record = []
+
+        states = tf.reshape(tf.tile(x, [1, 1]), [-1, 1, xshape])
+        for i in range(rollout_length):
+            new_states = []
+            for j in range(states.shape[1]):
+                for k in range(rollout_actions):
+                    with tf.variable_scope('q1', reuse=True):
+                        all_qs = vf_mlp(x, None, all_values=True)
+                        logp_all = tf.nn.log_softmax(all_qs * alpha)
+                        # logp_all = tf.Print(logp_all, [all_qs, logp_all])
+                        mu = tf.argmax(logp_all, 1)
+                        pi = tf.squeeze(tf.multinomial(logp_all, 1), axis=1)
+                        logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=action_space.n) * logp_all, axis=1)
+
+                    if i == 0:
+                        mu_record.append(mu)
+                        pi_record.append(pi)
+                        logp_pi_record.append(logp_pi)
+
+                    with tf.variable_scope(dy_scope, reuse=True):
+                        new_states.append(forward_nn(states[:,j], pi) + states[:,j])
+
+            states = tf.stack(new_states, axis=1)
+
+        numberofstates = rollout_actions ** rollout_length
+        with tf.variable_scope('q1', reuse=True):
+            all_qs = vf_mlp(states, None, all_values=True)
+            all_qs = tf.reduce_max(all_qs, axis=2)
+            bestone = tf.argmax(all_qs, axis=1) // (rollout_actions ** (rollout_length - 1))
+
+        mu_record = tf.stack(mu_record, axis=1)
+        pi_record = tf.stack(pi_record, axis=1)
+        logp_pi_record = tf.stack(logp_pi_record, axis=1)
+
+        print(mu_record)
+        print(pi_record)
+        print(logp_pi_record)
+        print(mu_record * tf.one_hot(bestone, depth=rollout_actions))
+
+        mu = tf.reduce_sum(mu_record * tf.one_hot(bestone, depth=rollout_actions), axis=1)
+        pi = tf.reduce_sum(pi_record * tf.one_hot(bestone, depth=rollout_actions), axis=1)
+        logp_pi = tf.reduce_sum(logp_pi_record * tf.one_hot(bestone, depth=rollout_actions), axis=1)
+
+        print(mu)
+        print(pi)
+        print(logp_pi)
+
 
     with tf.variable_scope('q1', reuse=True):
         q1_pi = vf_mlp(x, pi)
