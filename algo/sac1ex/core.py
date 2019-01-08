@@ -196,10 +196,10 @@ def mlp_actor_critic(alpha, x, a, hidden_sizes=(400,300), activation=tf.nn.relu,
             logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=action_space.n) * logp_all, axis=1)
 
     with tf.variable_scope('q1', reuse=True):
-        q1_pi = vf_mlp(x, pi)
+        q1_pi = vf_mlp(x, mu)
     with tf.variable_scope('q2'):
         q2 = vf_mlp(x, a)
     with tf.variable_scope('q2', reuse=True):
-        q2_pi = vf_mlp(x, pi)
+        q2_pi = vf_mlp(x, mu)
 
     return mu, pi, logp_pi, q1, q2, q1_pi, q2_pi

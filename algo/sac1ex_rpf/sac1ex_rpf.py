@@ -167,12 +167,12 @@ def sac1ex_rpf(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), see
     min_q_pi = tf.minimum(q1_pi_, q2_pi_)
 
     # Targets for Q and V regression
-    v_backup = tf.stop_gradient(min_q_pi - alpha * logp_pi_)
+    v_backup = tf.stop_gradient(min_q_pi - 0 * logp_pi_)
     q_backup = r_ph + gamma*(1-d_ph)*v_backup
 
 
     # Soft actor-critic losses
-    pi_loss = tf.reduce_mean(alpha * logp_pi - q1_pi)
+    pi_loss = tf.reduce_mean(0 * logp_pi - q1_pi)
     q1_loss = 0.5 * tf.reduce_mean((q_backup - q1)**2)
     q2_loss = 0.5 * tf.reduce_mean((q_backup - q2)**2)
     value_loss = q1_loss + q2_loss

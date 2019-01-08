@@ -275,6 +275,8 @@ def mlp_actor_critic(alpha, x, x2, a, hidden_sizes=(400,300), activation=tf.nn.r
         pi = tf.reduce_sum(pi_record * tf.expand_dims(tf.one_hot(bestone, depth=rollout_actions), axis=-1), axis=1)
         logp_pi = tf.reduce_sum(logp_pi_record * tf.one_hot(bestone, depth=rollout_actions), axis=1)
 
+        pi = mu
+
 
     elif isinstance(action_space, Discrete):
         with tf.variable_scope('q1', reuse=True):
@@ -329,6 +331,8 @@ def mlp_actor_critic(alpha, x, x2, a, hidden_sizes=(400,300), activation=tf.nn.r
         mu = tf.reduce_sum(mu_record * tf.one_hot(bestone, depth=rollout_actions, dtype=tf.int64), axis=1)
         pi = tf.reduce_sum(pi_record * tf.one_hot(bestone, depth=rollout_actions, dtype=tf.int64), axis=1)
         logp_pi = tf.reduce_sum(logp_pi_record * tf.one_hot(bestone, depth=rollout_actions, dtype=tf.float32), axis=1)
+
+        pi = mu
 
 
     with tf.variable_scope('q1', reuse=True):

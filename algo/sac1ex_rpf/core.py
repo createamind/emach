@@ -259,6 +259,8 @@ def mlp_actor_critic(alpha, x, a, hidden_sizes=(400,300), activation=tf.nn.relu,
             mu *= action_scale
             pi *= action_scale
 
+            pi = mu
+
     elif isinstance(action_space, Discrete):
         with tf.variable_scope('q1', reuse=True):
             all_qs = vf_mlp(x, None, all_values=True)
@@ -266,6 +268,9 @@ def mlp_actor_critic(alpha, x, a, hidden_sizes=(400,300), activation=tf.nn.relu,
             # logp_all = tf.Print(logp_all, [all_qs, logp_all])
             mu = tf.argmax(logp_all, 1)
             pi = tf.squeeze(tf.multinomial(logp_all, 1), axis=1)
+
+            pi = mu
+
             logp_pi = tf.reduce_sum(tf.one_hot(pi, depth=action_space.n) * logp_all, axis=1)
 
     with tf.variable_scope('q1', reuse=True):
