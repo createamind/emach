@@ -43,7 +43,8 @@ if __name__ == '__main__':
         'td3': algo.td3,
         'sac1ex': algo.sac1ex,
         'sac1ex_mb': algo.sac1ex_mb,
-        'sac1ex_rpf': algo.sac1ex_rpf
+        'sac1ex_rpf': algo.sac1ex_rpf,
+        'eqn': algo.eqn
     }
     if args.algo in algos:
         algos[args.algo](wrap_env_creator(lambda : gym.make(args.env)),
