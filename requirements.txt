@@ -11,3 +11,4 @@ scipy
 seaborn==0.8.1
 tensorflow>=1.8.0
 tqdm
+opencv-python

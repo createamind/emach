@@ -1,6 +1,6 @@
 import algo
 import gym
-from ray.rllib.env.atari_wrappers import wrap_deepmind, is_atari
+from atari_wrappers import wrap_deepmind, is_atari_image, is_breakout_ram, wrap_breakout
 
 if __name__ == '__main__':
     import argparse
@@ -17,10 +17,10 @@ if __name__ == '__main__':
     parser.add_argument('--exp-name', type=str, default='sac')
     parser.add_argument('--algo', type=str, default='sac')
     parser.add_argument('--batch-size', type=int, default=128)
-    parser.add_argument('--replay-iters', type=int, default=5)
-    parser.add_argument('--prior-scale', type=float, default=1.)
+    parser.add_argument('--replay-iters', type=int, default=100)
+    parser.add_argument('--prior-scale', type=float, default=2.)
     parser.add_argument('--num-ensemble', type=int, default=5)
-    parser.add_argument('--alpha', type=float, default=0.2)
+    parser.add_argument('--alpha', type=float, default=0.01)
     args = parser.parse_args()
 
     from logger import setup_logger_kwargs
@@ -30,9 +30,12 @@ if __name__ == '__main__':
     def wrap_env_creator(env_creator):
         def run():
             env = env_creator()
-            if is_atari(env):
+            if is_atari_image(env):
                 print('Welcome Atari!')
                 env = wrap_deepmind(env)
+            if is_breakout_ram(env):
+                print('Welcome Breakout RAM!')
+                env = wrap_breakout(env)
             return env
         return run
 
@@ -44,7 +47,8 @@ if __name__ == '__main__':
         'sac1ex': algo.sac1ex,
         'sac1ex_mb': algo.sac1ex_mb,
         'sac1ex_rpf': algo.sac1ex_rpf,
-        'eqn': algo.eqn
+        'eqn': algo.eqn,
+        'iqn': algo.iqn
     }
     if args.algo in algos:
         algos[args.algo](wrap_env_creator(lambda : gym.make(args.env)),

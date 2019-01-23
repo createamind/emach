@@ -5,7 +5,29 @@ from gym import spaces
 import cv2
 cv2.ocl.setUseOpenCL(False)
 
-def is_atari(env):
+
+class RamWrapperEnv(gym.Wrapper):
+    def __init__(self, env):
+        gym.Wrapper.__init__(self, env)
+
+    def reset(self, **kwargs):
+        o = self.env.reset(**kwargs)
+        o = o.astype(float) / 128 - 1
+        return o
+
+    def step(self, ac):
+        o, s, d, _ = self.env.step(ac)
+        o = o.astype(float) / 128 - 1
+        return o, s, d, _
+
+def wrap_breakout(env):
+    env = RamWrapperEnv(env)
+    return env
+    
+def is_breakout_ram(env):
+    return 'Breakout-ram' in env.unwrapped.spec.id
+
+def is_atari_image(env):
     if (hasattr(env.observation_space, "shape")
             and env.observation_space.shape is not None
             and len(env.observation_space.shape) <= 2):
@@ -284,3 +306,4 @@ def wrap_deepmind(env, dim=84, framestack=True):
     # env = ClipRewardEnv(env)  # reward clipping is handled by policy eval
     if framestack:
         env = FrameStack(env, 4)
+    return env
